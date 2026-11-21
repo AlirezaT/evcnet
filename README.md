@@ -1,5 +1,7 @@
 # EVC-net (Last Mile Solutions) Charging Station Integration for Home Assistant
 
+> **Fork of [wilbiev/evcnet](https://github.com/wilbiev/evcnet)** that adds optional reimbursement tariff sensors (50five mobile API, configurable VAT). Install via HACS as a custom repository: `https://github.com/AlirezaT/evcnet`.
+
 This custom integration allows you to monitor and control your EVC-net (Last Mile Solutions) charging station through Home Assistant.
 
 ## Disclaimer
