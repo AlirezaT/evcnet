@@ -25,6 +25,9 @@ def _bare_coordinator() -> EvcNetCoordinator:
     coordinator._reimbursement_client = None
     coordinator._reimbursement_vat_percent = None
     coordinator._reimbursement_cache = {}
+    coordinator._invoices = None
+    coordinator._invoices_updated = None
+    coordinator._invoices_warned = False
     coordinator._spots_updated = None
     return coordinator
 

@@ -72,9 +72,7 @@ SENSOR_TYPES: tuple[EvcNetSensorEntityDescription, ...] = (
         ),
         attributes_fn=lambda data: {
             "tariff_source": data.reimbursement.source,
-            "vat_source": "user_configured"
-            if data.reimbursement_vat_percent is not None
-            else "not_configured",
+            "vat_source": data.reimbursement_vat_source or "unavailable",
             "last_successful_update": data.reimbursement.updated_at,
         },
     ),
@@ -86,9 +84,62 @@ SENSOR_TYPES: tuple[EvcNetSensorEntityDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.reimbursement_vat_percent,
         attributes_fn=lambda data: {
-            "vat_source": "user_configured_reimbursement"
-            if data.reimbursement_vat_percent is not None
-            else "not_configured"
+            "vat_source": data.reimbursement_vat_source or "unavailable",
+            "invoice_vat_percentage": data.invoices.vat_percent,
+        },
+    ),
+    EvcNetSensorEntityDescription(
+        key="last_reimbursement_invoice",
+        translation_key="last_reimbursement_invoice",
+        native_unit_of_measurement=CURRENCY_EURO,
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=lambda data: (
+            data.invoices.latest.amount if data.invoices.latest else None
+        ),
+        attributes_fn=lambda data: (
+            {
+                "invoice_date": data.invoices.latest.invoice_date.isoformat(),
+                "status": data.invoices.latest.status,
+                "energy_kwh": data.invoices.latest.energy_kwh,
+                "sessions": data.invoices.latest.sessions,
+                "paid_rate_per_kwh": data.invoices.latest.paid_rate,
+                "vat_percentage": data.invoices.latest.vat_percent,
+                "last_successful_update": data.invoices.updated_at,
+            }
+            if data.invoices.latest
+            else {"last_successful_update": data.invoices.updated_at}
+        ),
+    ),
+    EvcNetSensorEntityDescription(
+        key="reimbursement_paid_rate",
+        translation_key="reimbursement_paid_rate",
+        native_unit_of_measurement=f"{CURRENCY_EURO}/kWh",
+        suggested_display_precision=4,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: (
+            data.invoices.latest.paid_rate if data.invoices.latest else None
+        ),
+        attributes_fn=lambda data: {
+            "invoice_date": data.invoices.latest.invoice_date.isoformat()
+            if data.invoices.latest
+            else None,
+        },
+    ),
+    EvcNetSensorEntityDescription(
+        key="reimbursement_year_to_date",
+        translation_key="reimbursement_year_to_date",
+        native_unit_of_measurement=CURRENCY_EURO,
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=lambda data: (
+            data.invoices.ytd_amount if data.invoices.updated_at else None
+        ),
+        attributes_fn=lambda data: {
+            "year": data.invoices.year,
+            "invoices": data.invoices.ytd_invoices,
+            "energy_kwh": data.invoices.ytd_energy_kwh,
+            "last_successful_update": data.invoices.updated_at,
         },
     ),
     EvcNetSensorEntityDescription(

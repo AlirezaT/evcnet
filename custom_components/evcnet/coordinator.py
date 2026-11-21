@@ -1,7 +1,7 @@
 """DataUpdateCoordinator for EVC-net."""
 
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import logging
 from typing import Any, cast
 
@@ -24,10 +24,14 @@ from .const import (
     EvcNetException,
 )
 from .reimbursement import (
+    INVOICE_REFRESH_SECONDS,
     REFRESH_SECONDS,
+    InvoiceData,
     MobileReimbursementClient,
+    RawInvoice,
     ReimbursementData,
     ReimbursementError,
+    summarize_invoices,
     tariff_number,
 )
 from .utils import get_total_energy_usage_kwh
@@ -54,6 +58,8 @@ class EvcSpotData:
     logging: list[dict[str, Any]] = field(default_factory=list)
     reimbursement: ReimbursementData = field(default_factory=ReimbursementData)
     reimbursement_vat_percent: float | None = None
+    reimbursement_vat_source: str | None = None
+    invoices: InvoiceData = field(default_factory=InvoiceData)
 
 
 class EvcNetCoordinator(DataUpdateCoordinator[dict[str, EvcSpotData]]):
@@ -80,6 +86,9 @@ class EvcNetCoordinator(DataUpdateCoordinator[dict[str, EvcSpotData]]):
         self._reimbursement_vat_percent = reimbursement_vat_percent
         self._reimbursement_cache: dict[str, tuple[datetime, ReimbursementData]] = {}
         self._spots_updated: datetime | None = None
+        self._invoices: list[RawInvoice] | None = None
+        self._invoices_updated: datetime | None = None
+        self._invoices_warned = False
         self.charge_spots: list[dict[str, Any]] = []
         self._selected_card_ids = dict(selected_card_ids or {})
         self._selected_channel_ids = dict(selected_channel_ids or {})
@@ -108,6 +117,7 @@ class EvcNetCoordinator(DataUpdateCoordinator[dict[str, EvcSpotData]]):
             if not self.charge_spots:
                 _LOGGER.warning("No charging spots found in response")
                 return {}
+            await self._async_refresh_invoices()
 
             old_card_selections = self._get_old_card_selections()
             old_channel_selections = self._get_old_channel_selections()
@@ -287,6 +297,17 @@ class EvcNetCoordinator(DataUpdateCoordinator[dict[str, EvcSpotData]]):
                     _, logging_data = logging_cache
 
             reimbursement = await self._async_get_reimbursement(spot, spot_id)
+            invoices = (
+                summarize_invoices(
+                    self._invoices,
+                    str(spot_id),
+                    dt_util.now().date(),
+                    self._invoices_updated,
+                )
+                if self._invoices is not None
+                else InvoiceData()
+            )
+            vat_percent, vat_source = self._effective_vat(invoices)
             return EvcSpotData(
                 info=spot,
                 status=status,
@@ -298,7 +319,9 @@ class EvcNetCoordinator(DataUpdateCoordinator[dict[str, EvcSpotData]]):
                 selected_channel_id=str(selected_channel_id),
                 logging=logging_data,
                 reimbursement=reimbursement,
-                reimbursement_vat_percent=self._reimbursement_vat_percent,
+                reimbursement_vat_percent=vat_percent,
+                reimbursement_vat_source=vat_source,
+                invoices=invoices,
             )
 
         except EvcNetException as err:
@@ -320,6 +343,39 @@ class EvcNetCoordinator(DataUpdateCoordinator[dict[str, EvcSpotData]]):
                 selected_channel_id="",
                 logging=[],
             )
+
+    def _effective_vat(self, invoices: InvoiceData) -> tuple[float | None, str | None]:
+        """Prefer the user's fixed VAT rate, otherwise the latest invoice's rate."""
+        if self._reimbursement_vat_percent is not None:
+            return self._reimbursement_vat_percent, "user_configured"
+        if invoices.vat_percent is not None:
+            return invoices.vat_percent, "reimbursement_invoice"
+        return None, None
+
+    async def _async_refresh_invoices(self) -> None:
+        """Refresh account invoices every few hours; keep the last good data on errors."""
+        if self._reimbursement_client is None:
+            return
+        now = dt_util.utcnow()
+        if (
+            self._invoices_updated is not None
+            and (now - self._invoices_updated).total_seconds() < INVOICE_REFRESH_SECONDS
+        ):
+            return
+        today = dt_util.now().date()
+        try:
+            self._invoices = await self._reimbursement_client.get_invoices(
+                date(today.year - 1, 1, 1)
+            )
+        except ReimbursementError:
+            if not self._invoices_warned:
+                _LOGGER.warning(
+                    "Reimbursement invoices unavailable; keeping last known data"
+                )
+                self._invoices_warned = True
+            return
+        self._invoices_updated = now
+        self._invoices_warned = False
 
     async def _async_get_reimbursement(
         self, spot: dict[str, Any], spot_id: str

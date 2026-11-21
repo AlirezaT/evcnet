@@ -58,7 +58,9 @@ After you log in (and enter the 2FA code, if asked), setup shows a **Reimburseme
 
 - **Use the 50five mobile API**: Off by default. Reads the home charging compensation (HCC) tariff in €/kWh from the 50five mobile GraphQL API. This is useful because on many accounts the EVC-net portal doesn't show the reimbursement rate.
 - **Mobile API address**: Prefilled with `https://lms.servicelayer.platform-01.plugz.dev/graphql`, the production server of the 50five app (run by Plugz). Must be an HTTPS address ending in `/graphql`.
-- **Add VAT to the reimbursement tariff** / **VAT rate (%)**: Gives the incl. VAT sensor a value. The integration can't detect which VAT applies to you, so use the rate on your reimbursement statement.
+- **Override VAT with a fixed rate** / **Fixed VAT rate (%)**: Off by default. With the mobile API on, the VAT rate is read automatically from your latest reimbursement invoice. Turn the override on only if that rate is wrong for you; then the fixed rate is always used.
+
+With the mobile API on, the integration also reads your reimbursement invoices (every 6 hours) for the invoice sensors below. Invoices that cover several chargers are split between them by charged energy.
 
 Risks of the mobile API:
 
@@ -95,8 +97,11 @@ For each charging station, the integration creates:
 - **Status Code**: Raw status code from the charging station
 - **Total Energy**: Total energy consumed (kWh)
 - **Reimbursement Tariff (excl. VAT)** (diagnostic): Reimbursement tariff in €/kWh, with attributes `tariff_source` and `last_successful_update`.
-- **Reimbursement Tariff (incl. VAT)** (diagnostic): Tariff including the configured VAT; unknown when no VAT is configured.
-- **VAT Rate** (diagnostic): The configured reimbursement VAT percentage.
+- **Reimbursement Tariff (incl. VAT)** (diagnostic): Tariff including VAT (automatic from invoices, or your fixed override); unknown when no VAT rate is known.
+- **VAT Rate** (diagnostic): The VAT percentage in use. Attribute `vat_source` is `reimbursement_invoice` (automatic) or `user_configured` (fixed override).
+- **Last Reimbursement Invoice**: Amount (€) of the most recent monthly reimbursement invoice, with attributes `invoice_date`, `status`, `energy_kwh`, `sessions`, `paid_rate_per_kwh` and `vat_percentage`.
+- **Reimbursement Paid Rate**: What that invoice actually paid per kWh (amount ÷ energy). Useful to check the tariff and VAT against real payouts.
+- **Reimbursement Year to Date**: Total reimbursed (€) on invoices dated this calendar year, with attributes `year`, `invoices` and `energy_kwh`.
 - **Last Logging Update**: shows when the logging was updated. Contains attribute **entries** with 50 logging entries per channel. Can be converted to markdown in the dashboard to show a list.
 
 ### Switch
