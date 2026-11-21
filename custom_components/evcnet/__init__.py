@@ -46,7 +46,6 @@ class EvcNetData:
 
     coordinator: EvcNetCoordinator
     reimbursement_options: dict[str, Any] = field(default_factory=dict)
-    mobile_session: aiohttp.ClientSession | None = None
 
 
 type EvcNetConfigEntry = ConfigEntry[EvcNetData]
@@ -114,22 +113,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: EvcNetConfigEntry) -> bo
         reimbursement_vat_percent=vat,
     )
 
-    refresh_succeeded = False
+    # The mobile session is created during entry setup, so Home Assistant
+    # detaches it automatically when the entry unloads or setup fails.
     try:
         await coordinator.async_config_entry_first_refresh()
-        refresh_succeeded = True
     except EvcNetException as err:
         raise ConfigEntryNotReady(f"Connection with EVC-net failed: {err}") from err
-    finally:
-        if not refresh_succeeded and mobile_session is not None:
-            await mobile_session.close()
 
     entry.runtime_data = EvcNetData(
         coordinator=coordinator,
         reimbursement_options={
             key: entry.options.get(key) for key in REIMBURSEMENT_OPTIONS
         },
-        mobile_session=mobile_session,
     )
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
@@ -219,7 +214,4 @@ def setup_services(hass: HomeAssistant) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: EvcNetConfigEntry) -> bool:
     """Unload a config entry."""
-    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unloaded and entry.runtime_data.mobile_session is not None:
-        await entry.runtime_data.mobile_session.close()
-    return unloaded
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

@@ -3,16 +3,24 @@
     "step": {
       "init": {
         "title": "Reimbursement tariff",
-        "description": "Enabling the optional mobile API sends your saved account email and password to the HTTPS endpoint entered here. Only use a provider endpoint you trust. Portal 2FA is unchanged. VAT must be confirmed by your reimbursement statement; these options apply to all chargers in this account.",
+        "description": "**Optional: home charging reimbursement tariff**\n\nWhy it's useful: on many accounts the EVC-net portal doesn't show the reimbursement rate (€/kWh) you get paid for charging at home. The 50five mobile API does, so Home Assistant can calculate your reimbursement and use it in energy management.\n\n**Risks — read before enabling:**\n- It isn't an official public API. It's the server behind the 50five app (run by Plugz) and can change or stop working without notice.\n- Your saved EVC-net email and password are sent to the address below. The prefilled address is the 50five app's production server; only change it to one you trust.\n- Portal login, 2FA and charger control aren't affected. If the API fails, only the tariff sensors become unknown.\n\n**VAT:** the tariff is reported excluding VAT, and the integration can't detect which VAT applies to you. If your reimbursement includes VAT, turn on VAT and enter the rate shown on your reimbursement statement (for example 6 or 21).\n\nYou can change these settings later under **Configure**. They apply to all chargers in this account.",
         "data": {
-          "mobile_reimbursement_enabled": "Enable 50five mobile reimbursement API",
-          "mobile_reimbursement_endpoint": "Trusted mobile GraphQL endpoint",
-          "reimbursement_vat_enabled": "Apply a confirmed reimbursement VAT percentage",
-          "reimbursement_vat_percent": "Reimbursement VAT (%)"
+          "mobile_reimbursement_enabled": "Use the 50five mobile API",
+          "mobile_reimbursement_endpoint": "Mobile API address",
+          "reimbursement_vat_enabled": "Add VAT to the reimbursement tariff",
+          "reimbursement_vat_percent": "VAT rate (%)"
+        },
+        "data_description": {
+          "mobile_reimbursement_enabled": "Sends your EVC-net email and password to the address below to read the tariff.",
+          "mobile_reimbursement_endpoint": "HTTPS address ending in /graphql. Prefilled with the 50five app's production server.",
+          "reimbursement_vat_enabled": "Gives the incl. VAT sensor a value using the rate below.",
+          "reimbursement_vat_percent": "Use the rate on your reimbursement statement."
         }
       }
     },
-    "error": {"invalid_mobile_endpoint": "Enter an HTTPS URL ending in /graphql, without credentials, query or fragment."}
+    "error": {
+      "invalid_mobile_endpoint": "Enter an HTTPS address ending in /graphql, without credentials, query or fragment."
+    }
   },
   "config": {
     "step": {
@@ -47,6 +55,22 @@
         "data": {
           "otp": "Verification code"
         }
+      },
+      "reimbursement": {
+        "title": "Reimbursement tariff",
+        "description": "**Optional: home charging reimbursement tariff**\n\nWhy it's useful: on many accounts the EVC-net portal doesn't show the reimbursement rate (€/kWh) you get paid for charging at home. The 50five mobile API does, so Home Assistant can calculate your reimbursement and use it in energy management.\n\n**Risks — read before enabling:**\n- It isn't an official public API. It's the server behind the 50five app (run by Plugz) and can change or stop working without notice.\n- Your saved EVC-net email and password are sent to the address below. The prefilled address is the 50five app's production server; only change it to one you trust.\n- Portal login, 2FA and charger control aren't affected. If the API fails, only the tariff sensors become unknown.\n\n**VAT:** the tariff is reported excluding VAT, and the integration can't detect which VAT applies to you. If your reimbursement includes VAT, turn on VAT and enter the rate shown on your reimbursement statement (for example 6 or 21).\n\nYou can change these settings later under **Configure**. They apply to all chargers in this account.",
+        "data": {
+          "mobile_reimbursement_enabled": "Use the 50five mobile API",
+          "mobile_reimbursement_endpoint": "Mobile API address",
+          "reimbursement_vat_enabled": "Add VAT to the reimbursement tariff",
+          "reimbursement_vat_percent": "VAT rate (%)"
+        },
+        "data_description": {
+          "mobile_reimbursement_enabled": "Sends your EVC-net email and password to the address below to read the tariff.",
+          "mobile_reimbursement_endpoint": "HTTPS address ending in /graphql. Prefilled with the 50five app's production server.",
+          "reimbursement_vat_enabled": "Gives the incl. VAT sensor a value using the rate below.",
+          "reimbursement_vat_percent": "Use the rate on your reimbursement statement."
+        }
       }
     },
     "error": {
@@ -54,7 +78,8 @@
       "cannot_connect": "Cannot connect to EVC-net",
       "invalid_url": "Invalid URL format. Use http:// or https://",
       "invalid_otp": "Invalid or expired verification code",
-      "unknown": "Unexpected error occurred"
+      "unknown": "Unexpected error occurred",
+      "invalid_mobile_endpoint": "Enter an HTTPS address ending in /graphql, without credentials, query or fragment."
     },
     "abort": {
       "already_configured": "This account is already configured",
@@ -93,9 +118,15 @@
       }
     },
     "sensor": {
-      "reimbursement_tariff_excl_vat": {"name": "Reimbursement Tariff (excl. VAT)"},
-      "reimbursement_tariff_incl_vat": {"name": "Reimbursement Tariff (incl. VAT)"},
-      "vat_rate": {"name": "VAT Rate"},
+      "reimbursement_tariff_excl_vat": {
+        "name": "Reimbursement Tariff (excl. VAT)"
+      },
+      "reimbursement_tariff_incl_vat": {
+        "name": "Reimbursement Tariff (incl. VAT)"
+      },
+      "vat_rate": {
+        "name": "VAT Rate"
+      },
       "connector": {
         "name": "Connector"
       },

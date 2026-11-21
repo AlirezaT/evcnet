@@ -19,6 +19,8 @@ REIMBURSEMENT_OPTIONS = (
 
 # Default values
 DEFAULT_BASE_URL = "https://50five-snl.evc-net.com"
+# Production GraphQL server of the 50five mobile app (run by Plugz)
+DEFAULT_MOBILE_ENDPOINT = "https://lms.servicelayer.platform-01.plugz.dev/graphql"
 DEFAULT_SCAN_INTERVAL = 60  # seconds
 LOG_ROW_LIMIT = 50  # Max number of log entries to process/display
 

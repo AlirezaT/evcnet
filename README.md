@@ -52,15 +52,21 @@ From version 1.1.4 onwards two factor authentication with OTP is supported.
    - **Email**: Your EVC-net account email
    - **Password**: Your EVC-net account password
 
-### Options: reimbursement tariff (optional)
+### Reimbursement tariff (optional)
 
-Under **Configure** on the integration entry you can optionally set up a home charging reimbursement tariff:
+After you log in (and enter the 2FA code, if asked), setup shows a **Reimbursement tariff** step. You can change the same settings later under **Configure** on the integration entry.
 
-- **Enable 50five mobile reimbursement API**: Fetches the home charging compensation (HCC) tariff via the 50five mobile GraphQL API. This sends your saved email and password to the endpoint you enter, so only enable it for an endpoint you trust. Portal login/2FA is not affected; if the mobile source fails, charger control keeps working.
-- **Trusted mobile GraphQL endpoint**: HTTPS URL ending in `/graphql` (no credentials, query or fragment).
-- **Apply a confirmed reimbursement VAT percentage** / **Reimbursement VAT (%)**: Used for the incl. VAT sensor. Confirm the rate against your reimbursement statement.
+- **Use the 50five mobile API**: Off by default. Reads the home charging compensation (HCC) tariff in €/kWh from the 50five mobile GraphQL API. This is useful because on many accounts the EVC-net portal doesn't show the reimbursement rate.
+- **Mobile API address**: Prefilled with `https://lms.servicelayer.platform-01.plugz.dev/graphql`, the production server of the 50five app (run by Plugz). Must be an HTTPS address ending in `/graphql`.
+- **Add VAT to the reimbursement tariff** / **VAT rate (%)**: Gives the incl. VAT sensor a value. The integration can't detect which VAT applies to you, so use the rate on your reimbursement statement.
 
-Without the mobile API, the tariff falls back to the portal's `REIMBURSEMENT_TARIFF` field when present. The generic `TARIFF` field is never used, as it can be a charging fee rather than a reimbursement. Tariffs refresh every 15 minutes.
+Risks of the mobile API:
+
+- It isn't an official public API. Requests identify themselves with the 50five app's client ID, so 50five or Plugz may change or block it without notice.
+- Your saved EVC-net email and password are sent to the address you enter. Only use an address you trust.
+- Portal login, 2FA and charger control aren't affected. If the API fails, only the tariff sensors become unknown.
+
+Without the mobile API, the tariff falls back to the portal's `REIMBURSEMENT_TARIFF` field when it has a value (on some accounts this field is empty). The generic `TARIFF` field is never used, as it can be a charging fee rather than a reimbursement. Tariffs refresh every 15 minutes.
 
 ## Available Entities
 

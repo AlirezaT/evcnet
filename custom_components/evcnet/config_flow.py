@@ -1,5 +1,6 @@
 """Config flow voor EVC-net."""
 
+from collections.abc import Mapping
 import logging
 from typing import Any
 
@@ -17,6 +18,7 @@ from .const import (
     CONF_REIMBURSEMENT_VAT,
     CONF_REIMBURSEMENT_VAT_ENABLED,
     DEFAULT_BASE_URL,
+    DEFAULT_MOBILE_ENDPOINT,
     DOMAIN,
 )
 from .reimbursement import valid_endpoint
@@ -34,6 +36,39 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_PASSWORD): str,
     }
 )
+
+
+def _reimbursement_schema(options: Mapping[str, Any]) -> vol.Schema:
+    """Build the reimbursement form, prefilling the production endpoint."""
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_MOBILE_REIMBURSEMENT,
+                default=options.get(CONF_MOBILE_REIMBURSEMENT, False),
+            ): bool,
+            vol.Optional(
+                CONF_MOBILE_ENDPOINT,
+                default=options.get(CONF_MOBILE_ENDPOINT) or DEFAULT_MOBILE_ENDPOINT,
+            ): str,
+            vol.Required(
+                CONF_REIMBURSEMENT_VAT_ENABLED,
+                default=options.get(CONF_REIMBURSEMENT_VAT_ENABLED, False),
+            ): bool,
+            vol.Required(
+                CONF_REIMBURSEMENT_VAT,
+                default=options.get(CONF_REIMBURSEMENT_VAT, 0),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+        }
+    )
+
+
+def _reimbursement_errors(user_input: Mapping[str, Any]) -> dict[str, str]:
+    """Validate the endpoint only when the mobile API is enabled."""
+    if user_input.get(CONF_MOBILE_REIMBURSEMENT) and not valid_endpoint(
+        user_input.get(CONF_MOBILE_ENDPOINT, "")
+    ):
+        return {CONF_MOBILE_ENDPOINT: "invalid_mobile_endpoint"}
+    return {}
 
 
 class EvcNetConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -55,6 +90,7 @@ class EvcNetConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._client: EvcNetApiClient | None = None
         self._save: Any | None = None
         self._reauth_entry: config_entries.ConfigEntry | None = None
+        self._entry_data: dict[str, Any] | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -83,15 +119,7 @@ class EvcNetConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         else:
                             if self._save is not None:
                                 await self._save(self._client.export_cookies())
-                            await self.async_set_unique_id(
-                                user_input[CONF_USERNAME].lower()
-                            )
-                            self._abort_if_unique_id_configured()
-
-                            return self.async_create_entry(
-                                title=user_input[CONF_USERNAME],
-                                data=user_input,
-                            )
+                            return await self._async_login_done(user_input)
 
                 except Exception:  # pylint: disable=broad-except
                     _LOGGER.exception("Unexpected error during setup")
@@ -133,12 +161,7 @@ class EvcNetConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         data_updates=data,
                         reason="reauth_successful",
                     )
-                await self.async_set_unique_id(data[CONF_USERNAME].lower())
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=data[CONF_USERNAME],
-                    data=data,
-                )
+                return await self._async_login_done(data)
 
         return self.async_show_form(
             step_id="otp",
@@ -147,6 +170,38 @@ class EvcNetConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             description_placeholders={
                 "username": self._pending_user_input[CONF_USERNAME]
             },
+        )
+
+    async def _async_login_done(
+        self, data: dict[str, Any]
+    ) -> config_entries.ConfigFlowResult:
+        """Continue a new setup with the optional reimbursement step."""
+        await self.async_set_unique_id(data[CONF_USERNAME].lower())
+        self._abort_if_unique_id_configured()
+        self._entry_data = data
+        return await self.async_step_reimbursement()
+
+    async def async_step_reimbursement(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Offer the optional mobile API and VAT before creating the entry."""
+        if self._entry_data is None:
+            return self.async_abort(reason="challenge_expired")
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = _reimbursement_errors(user_input)
+            if not errors:
+                return self.async_create_entry(
+                    title=self._entry_data[CONF_USERNAME],
+                    data=self._entry_data,
+                    options=user_input,
+                )
+
+        return self.async_show_form(
+            step_id="reimbursement",
+            data_schema=_reimbursement_schema(user_input or {}),
+            errors=errors,
         )
 
     async def async_step_reauth(
@@ -223,11 +278,8 @@ class EvcNetOptionsFlow(config_entries.OptionsFlow):
         """Configure reimbursement and preserve persisted card/channel options."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            if user_input.get(CONF_MOBILE_REIMBURSEMENT) and not valid_endpoint(
-                user_input.get(CONF_MOBILE_ENDPOINT, "")
-            ):
-                errors[CONF_MOBILE_ENDPOINT] = "invalid_mobile_endpoint"
-            else:
+            errors = _reimbursement_errors(user_input)
+            if not errors:
                 return self.async_create_entry(
                     title="", data={**self.config_entry.options, **user_input}
                 )
@@ -235,24 +287,5 @@ class EvcNetOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             errors=errors,
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_MOBILE_REIMBURSEMENT,
-                        default=options.get(CONF_MOBILE_REIMBURSEMENT, False),
-                    ): bool,
-                    vol.Optional(
-                        CONF_MOBILE_ENDPOINT,
-                        default=options.get(CONF_MOBILE_ENDPOINT, ""),
-                    ): str,
-                    vol.Required(
-                        CONF_REIMBURSEMENT_VAT_ENABLED,
-                        default=options.get(CONF_REIMBURSEMENT_VAT_ENABLED, False),
-                    ): bool,
-                    vol.Required(
-                        CONF_REIMBURSEMENT_VAT,
-                        default=options.get(CONF_REIMBURSEMENT_VAT, 0),
-                    ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
-                }
-            ),
+            data_schema=_reimbursement_schema(options),
         )

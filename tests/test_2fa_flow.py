@@ -260,8 +260,14 @@ async def test_verify_otp_persists_session_after_success() -> None:
 
     result = await flow.async_step_otp({"otp": "123456"})
 
-    assert result.get("type") == "create_entry"
+    assert result.get("type") == "form"
+    assert result.get("step_id") == "reimbursement"
     save.assert_awaited_once_with(client.export_cookies.return_value)
+
+    result = await flow.async_step_reimbursement(
+        {"mobile_reimbursement_enabled": False, "reimbursement_vat_enabled": False}
+    )
+    assert result.get("type") == "create_entry"
 
 
 @pytest.mark.asyncio
