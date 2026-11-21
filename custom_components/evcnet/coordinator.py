@@ -53,6 +53,7 @@ class EvcSpotData:
     available_channels: dict[int, str] = field(default_factory=dict)
     logging: list[dict[str, Any]] = field(default_factory=list)
     reimbursement: ReimbursementData = field(default_factory=ReimbursementData)
+    reimbursement_vat_percent: float | None = None
 
 
 class EvcNetCoordinator(DataUpdateCoordinator[dict[str, EvcSpotData]]):
@@ -65,6 +66,7 @@ class EvcNetCoordinator(DataUpdateCoordinator[dict[str, EvcSpotData]]):
         selected_card_ids: dict[str, str] | None = None,
         selected_channel_ids: dict[str, str] | None = None,
         reimbursement_client: MobileReimbursementClient | None = None,
+        reimbursement_vat_percent: float | None = None,
     ) -> None:
         """Initialize coordinator."""
         super().__init__(
@@ -75,6 +77,7 @@ class EvcNetCoordinator(DataUpdateCoordinator[dict[str, EvcSpotData]]):
         )
         self.client = client
         self._reimbursement_client = reimbursement_client
+        self._reimbursement_vat_percent = reimbursement_vat_percent
         self._reimbursement_cache: dict[str, tuple[datetime, ReimbursementData]] = {}
         self._spots_updated: datetime | None = None
         self.charge_spots: list[dict[str, Any]] = []
@@ -295,6 +298,7 @@ class EvcNetCoordinator(DataUpdateCoordinator[dict[str, EvcSpotData]]):
                 selected_channel_id=str(selected_channel_id),
                 logging=logging_data,
                 reimbursement=reimbursement,
+                reimbursement_vat_percent=self._reimbursement_vat_percent,
             )
 
         except EvcNetException as err:
